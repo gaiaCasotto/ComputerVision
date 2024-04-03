@@ -20,8 +20,6 @@ from util_functions import (
 np.set_printoptions(precision=4)
 
 
-
-
 #main
 # part 4.1
 # Find projection matrix and projections
@@ -151,5 +149,5 @@ print("K_true:\n", K)
 # The estimated K should be close to the true K. This one is very wrong :/ K_est is wrong
 
 
-#jkbdfeif
+
 

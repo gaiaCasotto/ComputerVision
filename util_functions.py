@@ -19,27 +19,7 @@ def pi(coords):
 def invPi(hom_coords):
     hom_coords = hom_coords[:-1]/hom_coords[-1]
     return hom_coords 
-'''
-def projectpoints(K, cam_pos, Q):
-    x = []
-    y = []
-    w = []
-    proj     = []
-    #Q = 3xn (3x241)
-    #K = 3x3
-    #ph = K@cam_pos@ = k @ cam_pos @ Q[i]
-    Q_hom = pi(Q)
-    #print(Q_hom)
-    for i in range(len(Q[0])):
-        q = Q_hom[:, i]
-        hom_p =  K @ cam_pos @ q
-        x.append(hom_p[0])
-        y.append(hom_p[1])
-        w.append(hom_p[2])
-    hom_proj = np.vstack( (x,y,w) )
-    proj = invPi(hom_proj)
-    return proj
-'''
+
 
 def projectpoints(K, cam_pos, Q, distCoeffs=[]):
     """
@@ -323,15 +303,15 @@ def triangulate(q_list, P_list):
     """
     B = []  # 2n x 4 matrix
     for i in range(len(P_list)):
-        qi = q_list[i]
+        qi  = q_list[i]
         P_i = P_list[i]
         B.append(P_i[2] * qi[0] - P_i[0])
         B.append(P_i[2] * qi[1] - P_i[1])
     B = np.array(B)
-    U, S, Vt = np.linalg.svd(B)
-    # TODO: why is the 3D point the last column of the matrix V
-    # returned by the SVD, normalized to have a last coordinate of 1.
+    print(f"this is inside triangulate: {B}")
+    _, __, Vt = np.linalg.svd(B)
     Q = Vt[-1, :-1] / Vt[-1, -1]
+    Q = Q.reshape(3, 1)
     return Q
 
 #part 4.1
@@ -518,6 +498,7 @@ def estimate_intrinsics(Hs):
         K : 3x3 intrinsic matrix
     """
     b = estimate_b(Hs)
+    print(f" this is b !!!!{b}")
     B11, B12, B22, B13, B23, B33 = b
     # Appendix B of Zhang's paper
     v0 = (B12 * B13 - B11 * B23) / (B11 * B22 - B12**2)
@@ -529,3 +510,58 @@ def estimate_intrinsics(Hs):
     # above values are sequences [value], so using [0] below is needed
     K = np.array([[alpha[0], gamma[0], u0[0]], [0, beta[0], v0[0]], [0, 0, 1]])
     return K
+
+
+# Ex 4.8
+def estimate_extrinsics(K, Hs):
+    """
+    Estimate extrinsic parameters using Zhang's method for camera calibration.
+
+    Args:
+        K : 3x3 intrinsic matrix
+        Hs : list of 3x3 homographies for each view
+
+    Returns:
+        Rs : list of 3x3 rotation matrices
+        ts : list of 3x1 translation vectors
+    """
+    Kinv = np.linalg.inv(K)
+    Rs = []
+    ts = []
+    for H in Hs:  # H = [h1|h2|h3]
+        h1 = H[:, 0]
+        h2 = H[:, 1]
+        h3 = H[:, 2]
+        lambda_ = np.linalg.norm(Kinv @ h1, 2)
+        r1 = 1 / lambda_ * Kinv @ h1  # (3,)
+        r2 = 1 / lambda_ * Kinv @ h2
+        r3 = np.cross(r1, r2)
+        t = np.array(1 / lambda_ * Kinv @ h3).reshape(3, 1)  # 3 x 1
+        R = np.vstack((r1, r2, r3)).T  # 3 x 3 [r1|r2|r3]
+        Rs.append(R)
+        ts.append(t)
+    Rs = np.array(Rs)
+    ts = np.array(ts)
+    return Rs, ts
+
+
+# Ex 4.8
+def calibrate_camera(qs, Q):
+    """
+    Calibrate camera using Zhang's method for camera calibration.
+
+    Args:
+        qs : list of 2xn arrays corresponding to each view
+        Q : 3 x (nxm) array of untransformed 3D points
+
+    Returns:
+        K : 3x3 intrinsic matrix
+        Rs : list of 3x3 rotation matrices
+        ts : list of 3x1 translation vectors
+    """
+    Hs = estimateHomographies(Q, qs)
+    K = estimate_intrinsics(Hs)
+    print(f"K is \n {K}")
+    Rs, ts = estimate_extrinsics(K, Hs)
+    return K, Rs, ts
+
